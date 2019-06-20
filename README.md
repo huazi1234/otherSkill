@@ -16,3 +16,8 @@ https://www.e-learn.cn/content/python/1974055
 用PyOpenGL叩开3D的心扉——OpenGL全解析
 
 https://eyehere.net/2011/learn-opengl-3d-by-pyopengl-3/
+
+
+初试PyOpenGL一 (Python+OpenGL)
+
+https://www.cnblogs.com/zhouxin/p/3526402.html
