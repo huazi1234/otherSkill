@@ -21,3 +21,17 @@ https://eyehere.net/2011/learn-opengl-3d-by-pyopengl-3/
 初试PyOpenGL一 (Python+OpenGL)
 
 https://www.cnblogs.com/zhouxin/p/3526402.html
+
+OpenCV教程：超详细的OpenCV入门教程，值得收藏！
+
+http://c.biancheng.net/opencv/
+
+
+学习opencv中文版教程——第二章
+
+https://www.cnblogs.com/letben/p/5416522.html
+
+
+史上最全的OpenCV入门教程
+
+https://blog.csdn.net/qq_38660394/article/details/80762011
