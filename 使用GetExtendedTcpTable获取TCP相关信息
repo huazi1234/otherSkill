@@ -1,0 +1,196 @@
+使用GetExtendedTcpTable获取TCP相关信息
+https://blog.csdn.net/sky101010ws/article/details/55511501
+下面介绍实现的细节。由于GetExtendedUdpTable与GetExtendedTcpTable的用法非常相似，故这里只介绍GetExtendedTcpTable的用法。GetExtendedTcpTable函数在 SDK 中没有，所以要自己定义。
+
+typedef DWORD (WINAPI *PFNGetExtendedTcpTable)(
+     __out         PVOID pTcpTable; //返回查询结构体指针
+     __in_out      PDWORD pdwSize; //第一次调用该参数会返回所需要的缓冲区大小
+     __in          BOOL bOrder; //是否排序
+     __in          ULONG ulAf; //是 AF_INET还是AF_INET6
+     __in          TCP_TABLE_CLASS TableClass; // 表示结构体的种类，此处设为TCP_TABLE_OWNER_PID_ALL
+     __in          ULONG Reserved //保留不用，设为 0
+);
+ pTcpTable 其实是一个指向 MIB_TCPTABLE_OWNER_PID 类型的指针。MIB_TCPTABLE_OWNER_PID结构定义如下：
+typedef struct _MIB_TCPTABLE_OWNER_PID
+{
+    DWORD                dwNumEntries;
+    MIB_TCPROW_OWNER_PID table[ANY_SIZE];
+} MIBTCPTABLEOWNERPID, *PMIBTCPTABLEOWNERPID;
+
+ dwNumEntries表示 MIB_TCPROW_OWNER_PID结构的数目，每个该结构指定一个TCP 连接的信息。ANY_SIZE 的值被定义为1，可以理解为 table 是 MIB_TCPROW_OWNER_PID 结构体数组的首地址，这样我们可以任意地访问每个数组的成员。这种定义方式就好比一列火车，告诉你车厢数以及火车头的地址，我们就可以得到每节车厢的地址。再来看MIB_TCPROW_OWNER_PID的定义：
+
+介绍完相关的数据结构就可以来使用该函数了。这里是我程序
+typedef struct _MIB_TCPROW_OWNER_PID
+{
+    DWORD       dwState;//连接状态
+    DWORD       dwLocalAddr;//本地 IP地址
+    DWORD       dwLocalPort;//本地端口
+    DWORD       dwRemoteAddr;//远程 IP 地址
+    DWORD       dwRemotePort;//远程端口
+    DWORD       dwOwningPid;//关联的进程ID
+} MIB_TCPROW_OWNER_PID, *PMIB_TCPROW_OWNER_PID;
+
+ int GetTcpConnect()
+ {
+     PMIB_TCPTABLE_OWNER_PID pTcpTable(NULL);
+     DWORD dwSize(0);
+     GetExtendedTcpTable(pTcpTable, &dwSize, TRUE,AF_INET,TCP_TABLE_OWNER_PID_ALL,0) == ERROR_INSUFFICIENT_BUFFER);
+     pTcpTable = (MIB_TCPTABLE_OWNER_PID *)new char[dwSize];//重新分配缓冲区
+
+     if(GetExtendedTcpTable(pTcpTable,&dwSize,TRUE,AF_INET,TCP_TABLE_OWNER_PID_ALL,0) != NO_ERROR)
+     {
+         delete pTcpTable;
+         return 0;
+     }
+     int nNum = (int) pTcpTable->dwNumEntries; //TCP连接的数目
+     for(int i=0;i<nNum;i++)
+     {
+         printf("本地地址：%s:%d  远程地址：%s:%d  状态：%d  进程ID:%d", 
+             inet_ntoa(*(in_addr*)& pTcpTable->table[i].dwLocalAddr), //本地IP 地址
+             htons(pTcpTable->table[i].dwLocalPort), //本地端口
+             inet_ntoa(*(in_addr*)& pTcpTable->table[i].dwRemoteAddr), //远程IP地址
+             htons(pTcpTable->table[i].dwRemotePort), //远程端口
+             pTcpTable->table[i].dwState, //状态
+             pTcpTable->table[i].dwOwningPid); //所属进程PID
+     }
+     delete pTcpTable;
+ }
+
+获取进程 ID 之后就可以获取进程名和路径了。我使用的是CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS,0)方法，在ROCESSENTRY32中没有进程的路径信息，可以用 GetModuleFileNameEx 函数获得，或是通过CreateToolhelp32Snapshot(TH32CS_SNAPMODULE,nPId) 查找进程模块，出现的第一个模块
+就是程序模块，路径存储在me32.szExePath中。这部分代码请参看我的源程序。 既然要模仿TcpView，当然要有进程图标了。一开始我选择去读取图标资源，但是这种方法兼容性不好，比较麻烦，其实只要用ExtractIcon函数就好了。以下是提取代码：
+遇到没有图标的程序可以使用系统默认的程序图标，只要调用HICON GetExeIcon(CString strExe,int nIdx = 0)//获取第 nIdx+1 个图标，一般程序将 nIdx 设为 0就可以了
+{
+    if(strExe == "") return NULL;
+    HMODULE hExe = LoadLibrary(strExe);//把EXE 当二进制资源加载
+    if (hExe == NULL) 
+    {
+        return NULL;
+    }
+    int nNum = (int)::ExtractIcon(hExe,strExe,-1);//获取图标数
+    if(nNum == 0) return NULL;
+    HICON hIcon = ::ExtractIcon(hExe,strExe,nIdx);//提取图标
+    FreeLibrary(hExe);//释放资源
+    return hIcon;
+}
+
+遇到没有图标的程序可以使用系统默认的程序图标，只要调用GetExeIcon("shell32.dll",2)就好了。要在每一项前面显示图标，需要在视图类的定义中添加图像列表指针 CImageList *m_pImgList，并在构造函数中初始化 m_pImgList = new CImageList; m_pImgList->Create(16, 16, ILC_COLORDDB|ILC_COLOR32, 8, 8)，然后在List 添加列的同时将图像列表加入 List ： m_list.SetImageList(m_pImgList,LVSIL_SMALL)。获取图标句柄后调用m_pImgList->Add(hIcon)，返回值为图标在 ImageList中的索引，该索引即是InsertItem时设置的图标索引。
+关闭 TCP 连接的方法是用 SetTcpEntry 函数设置连接的状态为：
+MIB_TCP_STATE_DELETE_TCB，下面是具体代码：  
+MIB_TCPROW tcprow;
+tcprow.dwLocalAddr = dwLocalIp;//本地 IP地址
+tcprow.dwRemoteAddr = dwRemoteIp;//远程IP 地址
+tcprow.dwLocalPort = ntohs(nLocalPort);//本地端口
+tcprow.dwRemotePort = ntohs(nRemotePort);//远程端口
+tcprow.dwState = MIB_TCP_STATE_DELETE_TCB;//删除连接
+SetTcpEntry(&tcprow);
+
+使用原始套接字可以监听到接收到的所有IP 数据包，只要分析TCP 包和 UDP 包的相关
+信息就可以得到每个连接的流量信息。每个连接在内存中是以 UpDownInfo 结构体的形式存储的。网上讲述原始套接字的文章有很多，黑防也有不少这种文章，这里只给出关键代码： 
+
+ 
+ 
+//由于代码很长，部分地方会省略冗长的代码，详细请见源程序
+vector<DWORD> dwMyIp; //本机IP列表，存放所有IP 地址，以便嗅探所有数据包  
+char szHost[256];
+// 取得本地主机名称
+::gethostname(szHost, 256);
+// 通过主机名得到地址信息
+hostent *pHost = ::gethostbyname(szHost);
+in_addr addr;
+for(int i = 0; ; i++)
+{
+    char *p = pHost->h_addr_list[i];
+    if(p == NULL) break;
+    dwMyIp.push_back(inet_addr(inet_ntoa(*(in_addr
+        *)pHost->h_addr_list[i]))); //保存IP地址
+}
+nNetNum = i;
+for(i = 0;i<nNetNum;i++)
+
+{
+    ::CreateThread(NULL,0,(LPTHREAD_START_ROUTINE)WorkThread,(LPVOID)this,0,
+        0); //建立新线程，WorkThread是嗅探的工作线程
+}
+int WINAPI WorkThread(LPVOID Param)
+{ // 创建原始套接字
+    SOCKET sock;
+    sock = socket(AF_INET, SOCK_RAW, IPPROTO_IP);
+    // 设置 IP头操作选项，其中 flag 设置为ture，亲自对 IP头进行处理
+    BOOL flag=TRUE;
+    setsockopt(sock, IPPROTO_IP, IP_HDRINCL, (char*)&flag, sizeof(flag));
+    SOCKADDR_IN addr_in;
+    addr_in.sin_addr.S_un.S_addr = dwMyIp[nIndex++];//用于设置监听的IP
+    addr_in.sin_family = AF_INET;
+    addr_in.sin_port = htons(10013); //绑定任意端口
+    if(bind(sock, (PSOCKADDR)&addr_in, sizeof(addr_in)) == SOCKET_ERROR)
+    {
+        AfxMessageBox("绑定地址失败");
+        return 1;
+    }
+    // dwValue为输入输出参数，为1 时执行，0时取消
+    DWORD dwValue = 1;
+    // 设置 SOCK_RAW 为SIO_RCVALL，以便接收所有的IP包。其中SIO_RCVALL
+    // 的定义为： #define SIO_RCVALL _WSAIOW(IOC_VENDOR,1)
+
+    ioctlsocket(sock, SIO_RCVALL, &dwValue); //将网卡设置为混合模式 
+    char RecvBuf[BUFFER_SIZE];//接收数据的缓冲区
+    while(1) //死循环
+    {
+        int ret = recv(sock, RecvBuf, BUFFER_SIZE, 0);
+        if (ret >0)
+        {
+            IpHeader *iphdr = (IpHeader *)RecvBuf; //此处略去IP头定义，下同，详见代码
+            int nLen = ntohs(iphdr->TotalLen) - sizeof(IpHeader); //获取下层数据包长度
+            int bUp = IsMyIp(iphdr->SrcAddr,iphdr->DstAddr); //判断是否是发送数据，返回-1 表示不是本机数据包，因为原始套接字必须要设为混杂模式，否则无法监听到数据
+            if(bUp == -1) continue;//拒绝接收
+            DWORD dwLocalIp = bUp?iphdr->SrcAddr:iphdr->DstAddr;
+            DWORD dwRemoteIp = bUp?iphdr->DstAddr:iphdr->SrcAddr;
+            int hdrLen,i; 
+            if(iphdr->Protocol == IPPROTO_TCP) //是TCP 包
+            {  
+                TcpHeader *tcphdr = (TcpHeader *)(RecvBuf + iphdr->HdrLen*4);
+                hdrLen =iphdr->HdrLen*4+sizeof(TcpHeader);
+                USHORT nLocalPort =
+                    bUp?ntohs(tcphdr->SrcPort):ntohs(tcphdr->DstPort); //获取本地端口
+                USHORT nRemotePort =
+                    bUp?ntohs(tcphdr->DstPort):ntohs(tcphdr->SrcPort); //获取远程端口
+                for(int i=0;i<pThis->m_connList.size();i++)
+                {// m_connList为 vector<UpDownInfo>类型，UpDownInfo是保存连接相关信息的结构体
+                    if( 判断 m_connList中是否存在该连接 )
+                    {
+                        if(bUp)
+                        {
+                            m_connList[i].dwUpData += nLen - sizeof(TcpHeader);
+                            m_connList[i].nUpPacket ++;
+                        }else{
+                            m_connList[i].dwDownData += nLen -sizeof(TcpHeader); 
+
+                            m_connList[i].nDownPacket ++;
+                        }
+                    }   
+                    if(i>=m_connList.size())
+                    {
+                        UpDownInfo info;
+                        省略初始化结构体代码
+                            m_connList.push_back(info);
+                    }
+                }
+                if(iphdr->Protocol == IPPROTO_UDP) //是UDP 包
+                {
+                    UdpHeader *udphdr = (UdpHeader *)(RecvBuf + iphdr->HdrLen*4);
+                    //省略 UDP部分的处理代码，与上类似
+                }
+            }else{
+                //出现错误
+                break;
+            }
+        }
+        return 0;
+    }
+
+有一点要注意的是， UDP 协议与 TCP 不同，很多基于P2P 的程序只是绑定一个本地的 UDP端口，然后监听，此时可能所有的数据包都是发送到该端口上来的。原版的Tcpview是不分析 UDP 地址的，只看本地端口。我在此基础上做了点改进，会显示远程的 IP 地址，不过显示的只是收到的最近包的地址。其实也是可以做成显示所有远程通信地址的，只不过编写上会更麻烦一些（有兴趣读者可以自己完成）。
+显示物理地址部分我用的是网上的代码，就是查找纯真 IP 数据库中的记录，得到物理地址。如果当前程序目录下没有“qqwry.dat”文件，List中是不会添加“物理地址”这一列的。程序启动后连接默认会根据进程名排序，新加入的连接也会自动进行插入排序。
+
+总结
+ 
+在程序制作过程中也花了不少精力，比如刚开始总是有严重的资源泄漏问题，后来用的是 BoundsChecker不断调试解决的。现在我提供的这个版本还是有点简陋，有些细节也没有处理好，欢迎大家批评指正。最后谈一谈开头的话题，就是 VS 中的踢人问题，原理很简单，作为主机（服务端）时所有数据包都会发送到我电脑上来，只要我把要踢的人的TCP 连接关了，那他自然就掉线了，但前提是你要清楚要踢的是谁。还有种踢人挂用的是API Hook的方式，主要是对 send函数的挂钩，用SPI也是可以实现的。
