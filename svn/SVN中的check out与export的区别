@@ -1,0 +1,25 @@
+SVN中的check out与export的区别
+
+ 
+一、check out跟check in对应，export跟import对应。
+
+ 
+
+二、check out导出获得文件后，导出的文件仍处于SVN版本控制中，与版本库保持关联，比如你可以进行Svn Update或者Svn Commit操作。同时导出文件夹下有一个.svn的隐藏文件夹，存储着一些版本的元数据信息，通常可以再此基础上继续开发项目
+
+ 
+
+三、export 简单导出一个版本的数据，导出的文件脱离SVN版本控制，修改后无进行Update和Commit操作。导出文件夹下没有.svn目录，通常用来产品发布。
+
+ 
+
+四、export的使用
+
+1、export导出的是一个没有.svn版本控制器文件的纯净目录，一般用品产品发布，或者是用作代码回滚测试
+
+ 
+2、代码路径：/home/ajia/html/ecshop/ (该路径下存有从版本库checkout出来的代码)，
+      该项目的svn版本库路径：file:///var/www/svn_data/ecshop/ (或 svn://服务器ip/var/www/svn_data/ecshop/)
+     现在想代码回滚到某一版本（例如第9版本）看看代码情况，可使用以下命令：
+     svn export -r9 --force  file:///var/www/svn_data/ecshop/  /home/ajia/html/ecshop/
+     说明：-r+版本号，--force：强制导出到目的路径中，目的路径最后的文件夹ecshop必须是不存在
