@@ -1,0 +1,50 @@
+得到屏幕大小的方法大全(你知道有几种？)
+2012-08-20 06:46 ⁄ 工业·编程 ⁄ 共 1223字	⁄ 字号 小 中 大 ⁄ 暂无评论
+现在计算机就像买白菜一样，规格各异。有时候需要检测电脑的屏幕大小，以适应软件的需求。现总结如下，欢迎大家添加，一是增张我的见识，二是方便大家查询。 
+  
+1.使用GetSystemMetrics()函数：如： 
+int   cx   =   GetSystemMetrics(SM_CXFULLSCREEN); //得到宽度 
+int   cy   =   GetSystemMetrics(SM_CYFULLSCREEN); //得到高度 
+注意SM_CXSCREEN和SM_CYSCREEN与上面的区别。 
+2.使用GetDeviceCaps()函数，如： 
+int   cx   =   ::GetDeviceCaps(dc.m_hDC,HORZRES); 
+int   cy   =   ::GetDeviceCaps(dc.m_hDC,VERTRES); 
+3.使用SystemParametersInfo()函数，如： 
+CRect rt; 
+SystemParametersInfo(SPI_GETWORKAREA, 0, r,t 0); 
+4.使用EnumDisplaySettings()函数，如： 
+DEVMODE dm; 
+dm.dmSize = sizeof(DEVMODE) ; 
+EnumDisplaySettings(NULL,ENUM_CURRENT_SETTINGS,&dm); 
+int  cx   =  dm.dmPelsWidth; 
+int  cx   =  dm.dmPelsHeight; 
+5.使用GetWindowRect()函数，如： 
+CWnd * pwndDesktop = GetDesktopWindow(); 
+CRect rt; 
+pwndDesktop->GetWindowRect(&rt); 
+int cx =rt.Width(); 
+Int cy = rt.Height(); 
+  
+附加： 
+1.int cx = GetSystemMetrics(SM_CXFULLSCREEN); 
+int cy = GetSystemMetrics(SM_CYFULLSCREEN); 
+通过上边两个函数获取的是显示屏幕的大小，及不包括任务栏等区域。 
+  
+int   cx   =   GetSystemMetrics(   SM_CXSCREEN   );   
+int   cy   =   GetSystemMetrics(   SM_CYSCREEN   ); 
+这两个函数获取的是真正屏幕的大小。 
+  
+用前两个函数获取的大小可能是1024*687    而用下边两个获取的就是1024*768 
+2. 得到任务栏大小: 
+CWnd* pTaskWnd = FindWindow( _T("Shell_TrayWnd"), NULL ); 
+if( pTaskWnd ) pTaskWnd->ShowWindow( FALSE ); 
+3.任务栏是否隐藏: 
+LONG lStyle = GetWindowLong( pTaskWnd->GetSafeHwnd(), GWL_STYLE ); 
+if( lStyle & WS_VISIBLE ) 
+{ 
+//可见 
+} 
+else 
+{ 
+//隐藏 
+}
