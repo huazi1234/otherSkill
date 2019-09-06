@@ -1,0 +1,11 @@
+主板是否支持UEFI模式|电脑是否UEFI启动
+
+https://www.jianshu.com/p/e73729e7620d
+主板是否支持UEFI模式
+重启电脑，按Del/F2/F1进入BIOS设置，切换到Boot，查看是否有UEFI字样的选项，华硕在security下查看是否有Secure Boot；有则支持UEFI模式
+BIOS查看是否支持UEFI启动
+或者找到Boot Mode按回车，查看是否有UEFI模式，如果有表示支持UEFI，没有则不支持。
+BIOS查看是否支持UEFI启动
+电脑是否为UEFI启动模式
+win+r，输入msinfo32，回车，打开系统信息
+
